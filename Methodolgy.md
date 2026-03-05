@@ -73,11 +73,9 @@
    - Visualize with heatmaps: counties on y-axis, days on x-axis, color = outage severity.
 3. **Regression model — fixed effects panel:**
 
-   \[
-   \text{OutageSeverity}_{ct} = \beta_1 \text{HeatwaveDay}_{ct} + \beta_2 \text{CompoundHeatWind}_{ct} + \beta_3 \text{CompoundTriple}_{ct} + \gamma X_{ct} + \alpha_c + \delta_t + \varepsilon_{ct}
-   \]
+   $$\text{OutageSeverity}_{ct} = \beta_1 \text{HeatwaveDay}_{ct} + \beta_2 \text{CompoundHeatWind}_{ct} + \beta_3 \text{CompoundTriple}_{ct} + \gamma X_{ct} + \alpha_c + \delta_t + \varepsilon_{ct}$$
 
-   Where \(c\) = county, \(t\) = day, \(\alpha_c\) = county fixed effects (absorbs time-invariant infrastructure differences), \(\delta_t\) = day fixed effects (absorbs region-wide temporal shocks), and \(X_{ct}\) = additional controls (weekend indicator, holiday indicator).
+   Where $c$ = county, $t$ = day, $\alpha_c$ = county fixed effects (absorbs time-invariant infrastructure differences), $\delta_t$ = day fixed effects (absorbs region-wide temporal shocks), and $X_{ct}$ = additional controls (weekend indicator, holiday indicator).
 
    Use `linearmodels` Python package (`PanelOLS`). Cluster standard errors at the county level.
 
@@ -218,60 +216,3 @@
 4. **Policy recommendations:** Performance-based regulation that ties utility incentives to resilience metrics (SAIDI/SAIFI during extreme events).
 
 ---
-
-1. [A dataset of recorded electricity outages by United States county 2014–2022](https://www.nature.com/articles/s41597-024-03095-5) - In this Data Descriptor, we present county-level electricity outage estimates at 15-minute intervals...
-
-2. [EAGLE-I Outage Data 2014-2022](https://smc-datachallenge.ornl.gov/eagle/) - The provided dataset includes eight years of power outage information at the county level from 2014 ...
-
-3. [EAGLE-I Power Outage Data 2014 - 2022](https://www.osti.gov/dataexplorer/biblio/dataset/1975202) - The U.S. Department of Energy's Office of Scientific and Technical Information
-
-4. [EAGLE-I Power Outage Data 2025 - Constellation - ORNL](https://doi.ccs.ornl.gov/dataset/c09fce3f-5faa-54ef-878a-cb0af6851cb6)
-
-5. [EAGLE-I Power Outage Data 2024 - Constellation](http://doi.ccs.ornl.gov/dataset/2be78213-ef9e-5433-b1b0-9762d051146c) - The data has been collected from utility's public outage maps using an ETL process. The dataset deta...
-
-6. [[PDF] Quantitative Resilience-Based Assessment Framework Using ...](https://docs.nrel.gov/docs/fy23osti/83675.pdf) - The electric power outages in the EAGLE-I data set are rep- resented by the number of customers with...
-
-7. [Global Hourly - Integrated Surface Database (ISD) - NCEI - NOAA.gov](https://www.ncei.noaa.gov/products/land-based-station/integrated-surface-database) - ISD includes numerous parameters such as wind speed and direction, wind gust, temperature, dew point...
-
-8. [NOAA Integrated Surface Database (ISD)](https://registry.opendata.aws/noaa-isd/) - The Integrated Surface Database (ISD) consists of global hourly and synoptic observations compiled f...
-
-9. [NOAA Integrated Surface Data (ISD) - Microsoft Open Source](https://microsoft.github.io/AIforEarthDataSets/data/noaa-isd.html) - Notebooks and documentation for AI-for-Earth-managed datasets on Azure
-
-10. [A multi-year analysis of the impact of heatwaves and compound ...](https://www.nature.com/articles/s41598-025-15065-x) - Across the United States, power grids are increasingly under strain from extreme weather events, suc...
-
-11. [Storm Events Database](https://www.ncei.noaa.gov/stormevents/ftp.jsp) - The Storm Events Database contains records on various types of severe weather, as collected by NOAA'...
-
-12. [CMIP6-LOCA2 threshold and extreme event metric projections ...](https://data.usgs.gov/datacatalog/data/USGS:65cd1ff2d34ef4b119cb3d07)
-
-13. [CMIP6-LOCA2 spatial summaries of counties (TIGER 2023 ...](https://data.usgs.gov/datacatalog/data/USGS:673d0719d34e6b795de6b593)
-
-14. [CMIP6-LOCA2 spatial summaries of counties (TIGER 2023) from ...](https://www.usgs.gov/data/cmip6-loca2-spatial-summaries-counties-tiger-2023-1950-2100-contiguous-united-states) - The second data set analyzes the daily LOCA2 to produce 36 annual and 4 monthly threshold and extrem...
-
-15. [[XML] USGS.65cd1ff2d34ef4b119cb3d07.xml - USGS Science Data Catalog](https://data.usgs.gov/datacatalog/metadata/USGS.65cd1ff2d34ef4b119cb3d07.xml)
-
-16. [Indices](https://www.climdex.org/learn/indices/sector/) - Explore, download and analyse indices of observed and modelled climate extremes.
-
-17. [Hourly Load Data Archives - ERCOT.com](https://www.ercot.com/gridinfo/load/load_hist) - Hourly Load Data Archives. Historical information on hourly loads by ERCOT control area is provided ...
-
-18. [Wholesale Electricity Market Data - U.S. Energy Information ...](https://www.eia.gov/electricity/?rto=caiso) - Energy Information Administration - EIA - Official Energy Statistics from the U.S. Government
-
-19. [Annual Electric Power Industry Report, Form EIA-860 detailed data ...](https://www.eia.gov/electricity/data/eia860/) - The survey Form EIA-860 collects generator-level specific information about existing and planned gen...
-
-20. [Electric Substations - Dataset - Catalog - Data.gov](https://catalog.data.gov/dataset/electric-substations) - Homeland Infrastructure Foundation-Level Data (HIFLD) geospatial data sets containing information on...
-
-21. [US Electric Power Transmission Lines](https://gis-fws.opendata.arcgis.com/datasets/fws::us-electric-power-transmission-lines/about) - This feature layer, utilizing data from Homeland Infrastructure Foundation-Level Data, depicts elect...
-
-22. [Environmental Protection Agency (EPA), Environmental Justice ...](https://www.policymap.com/data/sources/environmental-protection-agency-epa-environmental-justice-screening-and-mapping-tool-ejscreen) - < Back to list of datasets Details EPA-generated indexes for a combination of environmental and soci...
-
-23. [EPA Environmental Justice Screening Tool (EJ Screen) data, 2015 ...](https://zenodo.org/records/14767363) - EJScreen is EPA's environmental justice mapping and screening tool that provides EPA with a national...
-
-24. [Technical Information and Data Downloads | US EPA](https://www.epa.gov/ejscreen/technical-information-and-data-downloads) - This page provides an introduction to the technical information about EPA's Environmental Justice Ma...
-
-25. [Reimagining Utility Climate Risk Planning - RMI](https://rmi.org/reimagining-utility-climate-risk-planning/) - This insight brief explains how to integrate emerging climate risk assessment frameworks with utilit...
-
-26. [EPRI Releases Framework to Address Extreme Weather Risk Assessment and Adaptation](https://www.prnewswire.com/news-releases/epri-releases-framework-to-address-extreme-weather-risk-assessment-and-adaptation-302455599.html) - /PRNewswire/ -- As society's reliance on electricity grows and extreme weather events increase in fr...
-
-27. [Climate READi - EPRI](https://interactive.epri.com/climate-readi-report) - Climate READi: Power Year One Annual Report
-
-28. [Record demand, real results: demand response delivers in June 2025](https://www.enelnorthamerica.com/insights/blogs/demand-response-june-2025-heatwave) - ISO New England (ISO-NE) declared a capacity deficiency on June 24 as extreme heat drove what is lik...
-
