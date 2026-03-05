@@ -73,7 +73,9 @@
    - Visualize with heatmaps: counties on y-axis, days on x-axis, color = outage severity.
 3. **Regression model — fixed effects panel:**
 
-   $$\text{OutageSeverity}_{ct} = \beta_1 \text{HeatwaveDay}_{ct} + \beta_2 \text{CompoundHeatWind}_{ct} + \beta_3 \text{CompoundTriple}_{ct} + \gamma X_{ct} + \alpha_c + \delta_t + \varepsilon_{ct}$$
+$$
+\text{OutageSeverity}_{ct} = \beta_1\,\text{HeatwaveDay}_{ct} + \beta_2\,\text{CompoundHeatWind}_{ct} + \beta_3\,\text{CompoundTriple}_{ct} + \gamma X_{ct} + \alpha_c + \delta_t + \varepsilon_{ct}
+$$
 
    Where $c$ = county, $t$ = day, $\alpha_c$ = county fixed effects (absorbs time-invariant infrastructure differences), $\delta_t$ = day fixed effects (absorbs region-wide temporal shocks), and $X_{ct}$ = additional controls (weekend indicator, holiday indicator).
 

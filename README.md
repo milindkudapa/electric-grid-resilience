@@ -78,7 +78,9 @@ project/
 
 **Regression model (Step 4):**
 
-$$\text{OutageSeverity}_{ct} = \beta_1\,\text{HeatwaveDay} + \beta_2\,\text{CompoundHeatWind} + \beta_3\,\text{CompoundTriple} + \gamma X_{ct} + \alpha_c + \delta_t + \varepsilon_{ct}$$
+$$
+\text{OutageSeverity}_{ct} = \beta_1\,\text{HeatwaveDay}_{ct} + \beta_2\,\text{CompoundHeatWind}_{ct} + \beta_3\,\text{CompoundTriple}_{ct} + \gamma X_{ct} + \alpha_c + \delta_t + \varepsilon_{ct}
+$$
 
 - $\alpha_c$ = county fixed effects; $\delta_t$ = day fixed effects; SEs clustered at county level
 - Compound triple threshold (heat + wind > 15 m/s + precip > 10 mm) is the 52× risk amplifier from the Nature 2025 EAGLE-I study
