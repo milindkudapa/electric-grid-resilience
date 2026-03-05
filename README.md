@@ -1,5 +1,4 @@
 # Electricity Grid Resilience — U.S. Regional Grid Stress
-**CLMT5037 Final Project**
 
 Quantitative analysis of how compound climate extremes (heat, drought, wildfire) amplify power outage risk in two U.S. balancing authority regions — **ERCOT** (Texas, 254 counties) and **CAISO** (California, 58 counties) — with projections to 2050 under CMIP6 scenarios.
 
