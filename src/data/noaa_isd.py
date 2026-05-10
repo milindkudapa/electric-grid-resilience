@@ -163,9 +163,12 @@ def parse_isd_gz(path: Path) -> pd.DataFrame:
                 hour  = int(line[23:25])
                 dt    = pd.Timestamp(year=year, month=month, day=day, hour=hour)
 
-                # Air temperature (scaled by 10, °C)
+                # Air temperature (scaled by 10, °C). QC: drop physically impossible
+                # values (>55°C or <-50°C) — these are typically broken station sensors.
                 temp_raw = line[87:92].strip()
                 temp_c = int(temp_raw) / 10.0 if temp_raw not in ("+9999", "9999", "") else np.nan
+                if not np.isnan(temp_c) and (temp_c > 55.0 or temp_c < -50.0):
+                    temp_c = np.nan
 
                 # Dew point (scaled by 10, °C)
                 dew_raw = line[93:98].strip()
@@ -175,11 +178,30 @@ def parse_isd_gz(path: Path) -> pd.DataFrame:
                 wind_raw = line[65:69].strip()
                 wind_ms = int(wind_raw) / 10.0 if wind_raw not in ("9999", "") else np.nan
 
+                # Precipitation from additional data section (AA1 = liquid precip).
+                # Format: AA1 + 2-char period hours + 4-char depth (mm×10) + 2 codes.
+                # Only accept 1-hour accumulations to avoid double-counting when
+                # stations also report 6h/24h overlapping windows.
+                precip_mm = np.nan
+                addl = line[105:] if len(line) > 105 else ""
+                aa1_idx = addl.find("AA1")
+                if aa1_idx >= 0:
+                    aa1_tail = addl[aa1_idx + 3:]
+                    if len(aa1_tail) >= 6:
+                        period_raw = aa1_tail[0:2]
+                        depth_raw = aa1_tail[2:6]
+                        if period_raw == "01" and depth_raw.strip() not in ("9999", ""):
+                            try:
+                                precip_mm = max(int(depth_raw), 0) / 10.0
+                            except ValueError:
+                                pass
+
                 records.append({
                     "datetime": dt,
                     "air_temp_c": temp_c,
                     "dew_point_c": dew_c,
                     "wind_speed_ms": wind_ms,
+                    "precip_mm": precip_mm,
                 })
             except (ValueError, IndexError):
                 continue
@@ -235,9 +257,16 @@ def aggregate_station_to_daily(hourly_df: pd.DataFrame) -> pd.DataFrame:
             heat_index_max=("heat_index_c", "max"),
             wind_speed_max=("wind_speed_ms","max"),
             rh_min=("rh_pct",     "min"),
+            precip_total=("precip_mm", lambda x: x.sum(min_count=1)),
         )
         .reset_index()
     )
+    # Daily-level QC: drop physically impossible aggregates (CONUS land record ~50°C,
+    # max wind gust ~80 m/s, max sustained precip ~500 mm/day).
+    daily.loc[(daily["tmax"] > 50.0) | (daily["tmax"] < -45.0), "tmax"] = np.nan
+    daily.loc[(daily["tmin"] > 45.0) | (daily["tmin"] < -50.0), "tmin"] = np.nan
+    daily.loc[daily["wind_speed_max"] > 80.0, "wind_speed_max"] = np.nan
+    daily.loc[daily["precip_total"] > 500.0, "precip_total"] = np.nan
     daily["date"] = pd.to_datetime(daily["date"])
     return daily
 

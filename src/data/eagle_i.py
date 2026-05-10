@@ -61,16 +61,23 @@ def _load_annual_csv(year: int) -> pd.DataFrame:
 def _standardise_columns(df: pd.DataFrame) -> pd.DataFrame:
     """Normalise column names to the expected schema."""
     df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
-    # Some releases use slightly different names — map them here.
+    # Map variant column names across EAGLE-I releases.
+    # 2014–2022 release: customers_out is named "sum"; total_customers absent.
+    # 2023+ release: uses customers_out and total_customers directly.
     renames = {
-        "fipscode":      _COL_FIPS,
-        "fips":          _COL_FIPS,
-        "customersout":  _COL_OUT,
+        "fipscode":       _COL_FIPS,
+        "fips":           _COL_FIPS,
+        "sum":            _COL_OUT,   # pre-2023 release
+        "customersout":   _COL_OUT,
         "totalcustomers": _COL_TOTAL,
-        "runstarttime":  _COL_TIMESTAMP,
-        "timestamp":     _COL_TIMESTAMP,
+        "runstarttime":   _COL_TIMESTAMP,
+        "timestamp":      _COL_TIMESTAMP,
     }
     df = df.rename(columns={k: v for k, v in renames.items() if k in df.columns})
+    # Older files omit total_customers — insert as NaN so downstream code
+    # can still compute max_customers_out and total_customer_hours.
+    if _COL_TOTAL not in df.columns:
+        df[_COL_TOTAL] = np.nan
     return df
 
 
@@ -89,7 +96,7 @@ def load_raw(year: int, region_fips: list[str]) -> pd.DataFrame:
     df = _load_annual_csv(year)
     df = _standardise_columns(df)
 
-    required = {_COL_FIPS, _COL_OUT, _COL_TOTAL, _COL_TIMESTAMP}
+    required = {_COL_FIPS, _COL_OUT, _COL_TIMESTAMP}
     missing = required - set(df.columns)
     if missing:
         raise ValueError(f"EAGLE-I CSV for {year} is missing columns: {missing}")
@@ -117,7 +124,7 @@ def aggregate_to_daily(df: pd.DataFrame) -> pd.DataFrame:
         total_customers          max total_customers recorded that day
         outage_fraction          max_customers_out / total_customers
         outage_event_flag        1 if outage_fraction > threshold
-        n_intervals              number of 15-min intervals with data (data quality proxy)
+        n_intervals              number of 15-min intervals with non-zero outage (outage duration proxy)
     """
     df = df.copy()
     df["date"] = df[_COL_TIMESTAMP].dt.date
@@ -136,9 +143,6 @@ def aggregate_to_daily(df: pd.DataFrame) -> pd.DataFrame:
     daily["date"] = pd.to_datetime(daily["date"])
     daily["outage_fraction"] = daily["max_customers_out"] / daily["total_customers"].replace(0, np.nan)
     daily["outage_event_flag"] = (daily["outage_fraction"] > OUTAGE_FRACTION_THRESHOLD).astype(int)
-
-    # Data coverage flag: full day = 96 intervals (24h × 4)
-    daily["low_coverage_flag"] = (daily["n_intervals"] < 80).astype(int)
 
     return daily.rename(columns={_COL_FIPS: "fips"})
 
@@ -178,6 +182,27 @@ def build_outage_panel(
     panel = pd.concat(frames, ignore_index=True)
     panel = panel.sort_values(["fips", "date"])
     panel = panel.set_index(["fips", "date"])
+
+    # Pre-2023 EAGLE-I files omit total_customers. Impute from years that have it
+    # (2023+) using the per-FIPS median — the customer base is stable year to year.
+    if panel["total_customers"].isna().any():
+        ref = (
+            panel[panel["total_customers"].notna()]
+            .groupby(level="fips")["total_customers"]
+            .median()
+        )
+        panel["total_customers"] = panel["total_customers"].where(
+            panel["total_customers"].notna(),
+            panel.index.get_level_values("fips").map(ref),
+        )
+        panel["outage_fraction"] = (
+            panel["max_customers_out"]
+            / panel["total_customers"].replace(0, np.nan)
+        )
+        panel["outage_event_flag"] = (
+            panel["outage_fraction"] > OUTAGE_FRACTION_THRESHOLD
+        ).astype(int)
+
     return panel
 
 

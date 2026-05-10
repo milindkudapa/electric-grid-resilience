@@ -55,7 +55,8 @@ project/
 │   └── 10_solutions.ipynb           # Step 10: Hardening, DERs, demand response
 ├── scripts/
 │   └── download_data.py     # Prints URLs + auto-downloads datasets
-├── requirements.txt
+├── pyproject.toml           # Dependencies (managed with uv)
+├── uv.lock                  # Locked versions (commit this)
 └── Methodolgy.md            # Full step-by-step methodology
 ```
 
@@ -110,24 +111,29 @@ Run `python scripts/download_data.py` for exact URLs and instructions for each d
 
 ## Setup
 
+**Prerequisites:** [uv](https://docs.astral.sh/uv/) (Python package manager). The repo pins Python 3.11 via `.python-version`.
+
 **1. Install dependencies**
 ```bash
-pip install -r requirements.txt
+cd electric-grid-resilience
+uv sync
 ```
+
+This creates `.venv/` and installs everything from `uv.lock`. Use the environment with `uv run …` (e.g. `uv run python scripts/download_data.py`) or activate `.venv` manually.
 
 **2. Download the TIGER county shapefile and Storm Events (automated)**
 ```bash
-python scripts/download_data.py --auto
+uv run python scripts/download_data.py --auto
 ```
 
 **3. Download remaining datasets manually** (EAGLE-I, LOCA2, EIA-860, HIFLD, EJScreen)
 ```bash
-python scripts/download_data.py   # prints URLs and target paths for each
+uv run python scripts/download_data.py   # prints URLs and target paths for each
 ```
 
 **4. Run notebooks in order**
 ```bash
-jupyter lab notebooks/
+uv run jupyter lab notebooks/
 ```
 Start with `01_study_area.ipynb` and proceed sequentially. Each notebook reads from `data/raw/` and writes outputs to `data/processed/`.
 
@@ -149,6 +155,6 @@ Start with `01_study_area.ipynb` and proceed sequentially. Each notebook reads f
 
 ## Requirements
 
-- Python 3.11+
-- See `requirements.txt` for full dependency list
+- Python 3.11+ (see `.python-version`)
+- Dependencies and versions: `pyproject.toml` + `uv.lock` (`uv sync` to install)
 - Key packages: `pandas`, `geopandas`, `linearmodels`, `statsmodels`, `scipy`, `matplotlib`, `seaborn`, `boto3`, `scikit-learn`

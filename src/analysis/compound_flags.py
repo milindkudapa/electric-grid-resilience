@@ -183,6 +183,17 @@ def add_weather_flags(df: pd.DataFrame) -> pd.DataFrame:
     else:
         df["compound_triple"] = np.nan
 
+    # Mutually exclusive category — used for non-collinear regressors.
+    # Priority: triple > heat+wind > heat+precip > heatwave_only > normal.
+    df["weather_category"] = "normal"
+    df.loc[df["heatwave_day"] == 1, "weather_category"] = "heatwave_only"
+    if precip_col:
+        df.loc[df["compound_heat_precip"] == 1, "weather_category"] = "heat_precip"
+    if wind_col:
+        df.loc[df["compound_heat_wind"] == 1, "weather_category"] = "heat_wind"
+    if wind_col and precip_col:
+        df.loc[df["compound_triple"] == 1, "weather_category"] = "triple"
+
     if index_was_set:
         df = df.set_index(["fips", "date"])
 

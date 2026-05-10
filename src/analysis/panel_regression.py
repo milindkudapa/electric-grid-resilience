@@ -1,16 +1,20 @@
 """
 Panel regression wrappers for the grid resilience analysis.
 
-Implements:
-1. Fixed-effects OLS panel regression (PanelOLS via linearmodels)
-   OutageSeverity_ct = β1*HeatwaveDay + β2*CompoundHeatWind + β3*CompoundTriple
-                     + γ*X_ct + α_c + δ_t + ε_ct
+Specifications:
+1. PanelOLS with county FE + month-of-year FE (NOT day FE — day FE absorbs
+   the spatial weather signal because heatwaves hit all counties at once).
+   Outcome defaults to log1p(total_customer_hours) since the raw outcome is
+   heavily zero-inflated and right-skewed.
 
-2. Logistic regression for binary outage event flag (via statsmodels).
+2. Conditional logit (FE absorbed) for binary outage_event_flag, using
+   linearmodels.PanelOLS as a linear probability model with county FE
+   when full conditional logit is infeasible (250k+ rows).
 
-3. Interaction model to test compound amplification factors.
+3. Mutually exclusive category dummies (normal | heatwave_only | heat_wind |
+   heat_precip | triple) avoid the multicollinearity from nested flags.
 
-All regressions cluster standard errors at the county (fips) level.
+All regressions cluster standard errors at the county level.
 """
 
 from __future__ import annotations
@@ -21,79 +25,109 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+CATEGORY_LEVELS = ["normal", "heatwave_only", "heat_wind", "heat_precip", "triple"]
+
 
 def _prep_panel(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Ensure the DataFrame has a proper MultiIndex (entity, time) required
-    by linearmodels PanelOLS.
-
-    Accepts either:
-    - A DataFrame with (fips, date) as columns, or
-    - A DataFrame already indexed by (fips, date).
-    """
     df = df.copy()
     if not isinstance(df.index, pd.MultiIndex):
         if "fips" in df.columns and "date" in df.columns:
             df = df.set_index(["fips", "date"])
         else:
-            raise ValueError(
-                "DataFrame must have a (fips, date) MultiIndex or 'fips' and 'date' columns."
-            )
+            raise ValueError("DataFrame needs (fips, date) MultiIndex or columns.")
     df.index.names = ["fips", "date"]
     return df
 
 
+def _category_dummies(df: pd.DataFrame, base: str = "normal") -> tuple[pd.DataFrame, list[str]]:
+    """Build mutually exclusive category dummies from `weather_category` column.
+    Drop the base category to avoid collinearity. Returns (df, dummy_col_names)."""
+    if "weather_category" not in df.columns:
+        raise KeyError("weather_category column missing — run add_weather_flags first.")
+    cats_present = [c for c in CATEGORY_LEVELS if c in df["weather_category"].unique()]
+    if base in cats_present:
+        cats_present.remove(base)
+    dummies = pd.DataFrame(index=df.index)
+    for c in cats_present:
+        dummies[f"cat_{c}"] = (df["weather_category"] == c).astype(int)
+    return pd.concat([df, dummies], axis=1), list(dummies.columns)
+
+
+def _add_month_dummies(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
+    """Append month-of-year dummies (drop January as base)."""
+    df = df.copy()
+    if isinstance(df.index, pd.MultiIndex):
+        dates = df.index.get_level_values("date")
+    else:
+        dates = pd.to_datetime(df["date"])
+    months = pd.Series(dates.month, index=df.index)
+    cols = []
+    for m in range(2, 13):
+        col = f"month_{m}"
+        df[col] = (months == m).astype(int)
+        cols.append(col)
+    return df, cols
+
+
 # ---------------------------------------------------------------------------
-# 1. Fixed-effects panel OLS (continuous outcome)
+# 1. Fixed-effects panel OLS (continuous outcome, log1p transform)
 # ---------------------------------------------------------------------------
 def run_panel_ols(
     df: pd.DataFrame,
     outcome: str = "total_customer_hours",
     weather_vars: list[str] | None = None,
+    use_categories: bool = True,
+    log_outcome: bool = True,
     controls: list[str] | None = None,
     entity_effects: bool = True,
-    time_effects: bool = True,
+    time_effects: bool = False,
+    add_month_fe: bool = True,
 ) -> Any:
-    """
-    Estimate a two-way fixed effects panel OLS model using linearmodels.
+    """Two-way FE PanelOLS with county FE + month-of-year FE by default.
 
-    Parameters
-    ----------
-    df           : merged outage + weather panel
-    outcome      : dependent variable name
-    weather_vars : main regressors (default: heatwave + compound flags)
-    controls     : additional control columns (e.g. weekend indicator)
-    entity_effects : include county fixed effects
-    time_effects   : include day fixed effects
+    Day-level time FE (`time_effects=True`) absorbs common weather shocks across
+    all counties on the same day, leaving only spatial residual variation. This
+    is rarely what we want for a regional weather-on-outage model — keep False.
 
-    Returns
-    -------
-    linearmodels PanelEffectsResults object (call .summary on it)
+    use_categories=True replaces nested flags with mutually exclusive
+    category dummies (normal/heatwave_only/heat_wind/heat_precip/triple).
+    log_outcome=True applies log(1 + outcome) to handle zero-inflation.
     """
     try:
         from linearmodels.panel import PanelOLS
     except ImportError as e:
-        raise ImportError("linearmodels is required: pip install linearmodels") from e
+        raise ImportError("linearmodels required: pip install linearmodels") from e
 
     df = _prep_panel(df)
 
-    if weather_vars is None:
-        weather_vars = [
-            c for c in ["heatwave_day", "compound_heat_wind", "compound_triple"]
-            if c in df.columns
-        ]
+    if use_categories:
+        df, regressors = _category_dummies(df)
+    else:
+        if weather_vars is None:
+            weather_vars = [
+                c for c in ["heatwave_day", "compound_heat_wind", "compound_triple"]
+                if c in df.columns
+            ]
+        regressors = list(weather_vars)
 
-    regressors = weather_vars + (controls or [])
+    if add_month_fe and not time_effects:
+        df, month_cols = _add_month_dummies(df)
+        regressors = regressors + month_cols
 
-    # Drop rows with missing outcome or any regressor
+    regressors = regressors + (controls or [])
+
     cols_needed = [outcome] + regressors
     df_model = df[cols_needed].dropna()
-
     if len(df_model) == 0:
-        raise ValueError("No rows remain after dropping NaN values in model columns.")
+        raise ValueError("No rows after dropping NaN.")
 
-    exog = df_model[regressors]
-    endog = df_model[[outcome]]
+    y_raw = df_model[outcome].astype(float)
+    if log_outcome:
+        endog = np.log1p(y_raw.clip(lower=0)).to_frame(name=f"log1p_{outcome}")
+    else:
+        endog = y_raw.to_frame(name=outcome)
+
+    exog = df_model[regressors].astype(float)
 
     model = PanelOLS(
         endog,
@@ -102,104 +136,107 @@ def run_panel_ols(
         time_effects=time_effects,
         drop_absorbed=True,
     )
-    result = model.fit(cov_type="clustered", cluster_entity=True)
-    return result
+    return model.fit(cov_type="clustered", cluster_entity=True)
 
 
 # ---------------------------------------------------------------------------
-# 2. Logistic regression for binary outage event flag
+# 2. Conditional logit / linear probability model with county FE
 # ---------------------------------------------------------------------------
 def run_logit(
     df: pd.DataFrame,
     outcome: str = "outage_event_flag",
     weather_vars: list[str] | None = None,
+    use_categories: bool = True,
     controls: list[str] | None = None,
-    county_fe: bool = False,
+    method: str = "lpm",
 ) -> Any:
-    """
-    Logistic regression for a binary outage event.
+    """Binary outcome regression with county FE.
 
-    County fixed effects are included as dummy variables when county_fe=True
-    (note: standard logit with many dummies is subject to incidental parameters
-    bias — use only for exploratory analysis or with small county sets).
+    method='lpm': Linear Probability Model via PanelOLS with county FE +
+        clustered SE. Fast, handles 250k+ rows, gives marginal effects in
+        probability units. Recommended for this dataset.
 
-    Returns a statsmodels LogitResults object.
+    method='clogit': Conditional logit via statsmodels (slow with many
+        counties, may not converge).
+
+    method='pooled_logit': Pooled logit ignoring county structure.
+        Provided only for comparison — biased.
     """
-    try:
+    df = _prep_panel(df)
+
+    if use_categories:
+        df, regressors = _category_dummies(df)
+    else:
+        if weather_vars is None:
+            weather_vars = [
+                c for c in ["heatwave_day", "compound_heat_wind", "compound_triple"]
+                if c in df.columns
+            ]
+        regressors = list(weather_vars)
+    regressors = regressors + (controls or [])
+
+    df_model = df[[outcome] + regressors].dropna()
+
+    if method == "lpm":
+        from linearmodels.panel import PanelOLS
+        endog = df_model[[outcome]].astype(float)
+        exog = df_model[regressors].astype(float)
+        model = PanelOLS(endog, exog, entity_effects=True, drop_absorbed=True)
+        return model.fit(cov_type="clustered", cluster_entity=True)
+
+    if method == "pooled_logit":
         import statsmodels.api as sm
-    except ImportError as e:
-        raise ImportError("statsmodels is required: pip install statsmodels") from e
+        df_flat = df_model.reset_index()
+        X = sm.add_constant(df_flat[regressors].astype(float))
+        y = df_flat[outcome].astype(int)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return sm.Logit(y, X).fit(maxiter=200, disp=False)
 
-    df = df.copy()
-    if isinstance(df.index, pd.MultiIndex):
-        df = df.reset_index()
+    if method == "clogit":
+        # Drop counties with no within-variation in outcome (clogit requires it).
+        df_flat = df_model.reset_index()
+        var_per_fips = df_flat.groupby("fips")[outcome].nunique()
+        keep_fips = var_per_fips[var_per_fips > 1].index
+        df_flat = df_flat[df_flat["fips"].isin(keep_fips)]
+        from statsmodels.discrete.conditional_models import ConditionalLogit
+        X = df_flat[regressors].astype(float)
+        y = df_flat[outcome].astype(int)
+        groups = df_flat["fips"]
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return ConditionalLogit(y, X, groups=groups).fit(maxiter=200, disp=False)
 
-    if weather_vars is None:
-        weather_vars = [
-            c for c in ["heatwave_day", "compound_heat_wind", "compound_triple"]
-            if c in df.columns
-        ]
-
-    regressors = weather_vars + (controls or [])
-
-    if county_fe and "fips" in df.columns:
-        dummies = pd.get_dummies(df["fips"], prefix="fe", drop_first=True)
-        df = pd.concat([df, dummies], axis=1)
-        regressors = regressors + list(dummies.columns)
-
-    cols_needed = [outcome] + regressors
-    df_model = df[cols_needed].dropna()
-
-    X = sm.add_constant(df_model[regressors].astype(float))
-    y = df_model[outcome].astype(int)
-
-    model = sm.Logit(y, X)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        result = model.fit(maxiter=200, disp=False)
-    return result
+    raise ValueError(f"Unknown method: {method}")
 
 
 # ---------------------------------------------------------------------------
-# 3. Interaction model — compound amplification
+# 3. Interaction model
 # ---------------------------------------------------------------------------
 def run_interaction_model(
     df: pd.DataFrame,
     outcome: str = "total_customer_hours",
     base_var: str = "heatwave_day",
     moderator: str = "wind_speed_max",
+    log_outcome: bool = True,
 ) -> Any:
-    """
-    Test whether the effect of heatwave on outages is amplified by wind speed
-    (i.e., compound amplification factor).
-
-    Adds an interaction term base_var × moderator and runs two-way FE OLS.
-
-    Returns PanelEffectsResults.
-    """
     df = _prep_panel(df).copy().reset_index()
-
     interaction_col = f"{base_var}_x_{moderator}"
     df[interaction_col] = df[base_var] * df[moderator]
-
     return run_panel_ols(
         df.set_index(["fips", "date"]),
         outcome=outcome,
         weather_vars=[base_var, moderator, interaction_col],
+        use_categories=False,
+        log_outcome=log_outcome,
     )
 
 
 # ---------------------------------------------------------------------------
-# 4. Result summary helpers
+# 4. Result helpers
 # ---------------------------------------------------------------------------
 def summarise_results(result) -> pd.DataFrame:
-    """
-    Extract a clean coefficient table from a linearmodels or statsmodels result.
-
-    Returns a DataFrame with columns: coef, std_err, t_stat, p_value, ci_lower, ci_upper
-    """
     try:
-        # linearmodels
         params  = result.params
         pvalues = result.pvalues
         std_err = result.std_errors
@@ -214,7 +251,6 @@ def summarise_results(result) -> pd.DataFrame:
             "ci_upper": ci.iloc[:, 1],
         })
     except AttributeError:
-        # statsmodels
         return pd.DataFrame({
             "coef":     result.params,
             "std_err":  result.bse,
