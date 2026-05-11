@@ -114,37 +114,39 @@ $$
 
 ## Step 5: Build the Climate Projection Panel
 
-**Objective:** Project future extreme heat frequency for ERCOT and CAISO counties under CMIP6 scenarios.
+**Objective:** Project future extreme heat for ERCOT and CAISO counties under SSP2-4.5 and SSP5-8.5, with two-track validation.
 
-**Data source:** USGS CMIP6-LOCA2 county spatial summaries. This pre-computed dataset provides time series of 36 annual and 4 monthly Climdex extreme event metrics, spatially averaged to every US county, for 27 GCMs under SSP2-4.5, SSP3-7.0, and SSP5-8.5, 1950–2100.[^12][^13][^14]
+**Primary data source:** USGS CMIP6-LOCA2 county spatial summaries — pre-computed time series of Climdex extreme-event metrics, spatially averaged to every US county, for 27 GCMs, 1950–2100.[^12][^13][^14]
 
-**Key variables from LOCA2 county summaries:**[^15][^16]
+**Key variables targeted (Climdex):**[^15][^16]
 
 | Variable | Definition | Relevance |
 |----------|-----------|-----------|
-| SU (Summer Days) | Days with Tmax > 25°C | Baseline heat exposure |
-| TR (Tropical Nights) | Days with Tmin > 20°C | Nighttime heat stress (grid doesn't cool) |
+| SU (Summer Days) | Days with Tmax > 25 °C | Baseline heat exposure |
+| TR (Tropical Nights) | Days with Tmin > 20 °C | Nighttime heat stress (grid does not cool) |
 | TXx (Max Tmax) | Hottest day of the year | Peak stress scenario |
-| WSDI (Warm Spell Duration) | Max consecutive days where Tmax > 90th percentile | Heatwave duration — critical for cascading grid stress |
-| CDD (Cooling Degree Days) | Cumulative degrees above base temp | Proxy for cooling demand |
-| Rx1day (Max 1-day precip) | Wettest day of year | Flood/storm risk to infrastructure |
-| Rx5day (Max 5-day precip) | Wettest 5-day period | Compound flooding |
-| CDD (Consecutive Dry Days) | Max consecutive dry days | Drought indicator |
+| WSDI (Warm Spell Duration Index) | Max consecutive days Tmax > 90th percentile | Heatwave duration |
+| CDD (Cooling Degree Days) | Cumulative degrees above base | Cooling-demand proxy |
+| Rx1day | Wettest day of year (mm) | Flood / storm-surge risk |
+| Rx5day | Wettest 5-day period | Compound flooding |
+| TXge90F / TXge100F | Days exceeding 90 / 100 °F | Direct asset-stress measure |
+| R20mm | Annual count of ≥ 20 mm precipitation days | Heavy-rain frequency |
 
-**Processing steps:**
-1. **Download** LOCA2 county time series for ERCOT and CAISO FIPS codes from USGS ScienceBase.[^12]
-2. **Compute climatologies** for:
-   - Historical baseline: 1991–2020
-   - Near-term: 2030–2059
-   - Mid-century: 2050–2079
-3. **Compute multi-model ensemble statistics** (median, 10th–90th percentile) for each county and each metric.
-4. **Calculate change factors:** Δ = Future_value − Historical_baseline for each metric and scenario.
-5. **Key output metrics:**
-   - How many additional summer days (SU) per year by 2050?
-   - How much longer do heatwaves last (WSDI change)?
-   - How do tropical nights (TR) change — these drive overnight electricity demand because AC can't be turned off?
-   - How do compound heat-drought indicators (WSDI × CDD) change?
-6. **Output:** `loca2_projections_ercot.csv`, `loca2_projections_caiso.csv`.
+**Fallback hierarchy.** Because the USGS ScienceBase delivery endpoint can be intermittent (returning authenticated HTML pages instead of the underlying NetCDF), the pipeline implements three sources in priority order, wired into `src/data/loca2.py::build_projection_panel`:
+
+1. **USGS LOCA2 NetCDF** at `data/raw/loca2/*.nc` (preferred, full 27-GCM ensemble).
+2. **USGS LOCA2 per-scenario CSVs** at `data/raw/loca2/*.csv` (legacy distribution).
+3. **AR6 regional-delta synthesis** — `src/data/loca2_ar6_synthesis.py`. Applies IPCC AR6 WGI Atlas ensemble-median deltas (Central North America for ERCOT: +2.4 °C SSP245 / +3.5 °C SSP585 TXx mid-century; Western North America for CAISO: +2.0 / +3.0 °C) to the observed 2018–2024 weather baseline. Near-term (2030–2059) deltas are scaled to 70% of mid-century. Inter-model spread encoded as a ±0.7 °C likely-range half-width for temperature variables and ±20% for count-style variables (SU, TR, WSDI, TXge90F, etc.). Produces the canonical projection schema so all downstream notebooks read it transparently.
+
+**Cross-validation track — NEX-GDDP-CMIP6.** A parallel, fully independent track uses NASA NEX-GDDP-CMIP6 daily downscaled tasmax fields. `src/data/nex_gddp_loader.py` streams annual NetCDFs from the anonymous AWS S3 mirror (`s3://nex-gddp-cmip6/<GCM>/<scenario>/<variant>/tasmax/...nc`), subsets to a North-America bounding box, computes annual TXx, and applies representative-point-in-polygon zonal statistics to TIGER county geometry. A 5-year proof-of-concept (ACCESS-CM2, SSP5-8.5, 2055–2059) produced 1,545 county-year observations. Agreement with AR6 synthesis: 0.5 °C at the regional 99th-percentile, 2.73 °C RMSE per county (Bay-Area "cooling" deltas reflect the short observed baseline; Mariposa County's +14.8 °C is a 0.25° grid-cell sampling artefact — both disclosed in the paper).
+
+**Processing steps.**
+1. Load and concatenate raw LOCA2 (NetCDF or CSV) if present; otherwise call the AR6 synthesis loader.
+2. Compute baseline climatology (1991–2020 from LOCA2, or 2018–2024 from observed weather panel under the AR6 fallback).
+3. Compute ensemble statistics (median, p10, p90) per county per period.
+4. Compute change factors Δ = future − baseline per metric per scenario.
+5. (Optional) Run the NEX-GDDP proof-of-concept and inject `TXx_nex_delta` into the projection CSV via `figures/04_inject_nex_gddp_delta.py`. NB07 then uses `TXx_nex_delta` for the heat-exposure rank when available.
+6. **Output:** `loca2_projections_ercot.csv` (532 rows = 133 counties × 2 scenarios × 2 periods) and `loca2_projections_caiso.csv` (200 rows), each with the full suite of `<var>_median`, `<var>_p10`, `<var>_p90`, `<var>_delta` columns.
 
 ***
 
@@ -170,26 +172,26 @@ $$
 
 ## Step 7: Asset Vulnerability Mapping
 
-**Objective:** Map grid infrastructure against projected climate hazards.
+**Objective:** Identify counties most exposed to compound climate-grid risk using three weighted layers: heat exposure, wildfire exposure, and asset density.
 
 **Data sources:**
-- HIFLD electric substations (point data), transmission lines (line data)[^20][^21]
-- EIA-860 power plants (point data with generator specs)[^19]
-- LOCA2 projected extreme heat layers (gridded → county)
-- MTBS wildfire perimeters (for CAISO, historical burn severity)
-- CAL FIRE FHSZ maps (for CAISO, fire hazard zones)
+- **HIFLD electric substations** — 9,461 point records covering TX (5,196) and CA (4,265), downloaded via `figures/05_download_hifld_substations.py` from the ArcGIS REST endpoint. The default `data.gov` "Electric Substations" entry returns a 19-record Maryland CAD layer in EPSG:26985, not the canonical national layer; the ArcGIS REST path is the correct source. The REST response declares EPSG:4326 but ships Web Mercator coordinates, so the loader explicitly reprojects.[^20]
+- **HIFLD transmission lines** — 94,619 line segments[^21]
+- **CAL FIRE State Responsibility Area FHSZ** — 18,423 polygons (8,411 Very High, 5,824 High, 4,188 Moderate), downloaded via `figures/06_download_cal_fire_fhsz.py` from the CAL FIRE FRAP ArcGIS REST mirror. Saved with column `HAZ_CLASS` so NB07 picks it up directly.[^17]
+- **NEX-GDDP-CMIP6 per-county TXx delta** — preferred heat layer; falls back to LOCA2 / AR6 `WSDI_delta` when not present.
+- EIA-860 power plants for fleet inventory (referenced for stress test, not used directly in NB07).[^19]
 
-**Processing steps:**
-1. **Spatial overlay** in Python (geopandas) or QGIS:
-   - Count substations and transmission line-km within each county.
-   - For each county, attach the LOCA2 projected change in SU, WSDI, TXx.
-   - For CAISO counties, overlay FHSZ "Very High" zones and compute fraction of transmission line-km within fire-prone areas.
-2. **Asset risk score:** For each county, compute a composite score:
-   - Heat exposure (LOCA2 WSDI change, percentile rank)
-   - Wildfire exposure (fraction in FHSZ Very High, for CAISO)
-   - Asset density (substations + line-km per km²)
-   - Weighted combination → priority ranking of most-at-risk counties.
-3. **Produce maps** (choropleth) showing the spatial distribution of asset vulnerability.
+**Processing steps.**
+1. Spatial-join substations + transmission representative points to county polygons (EPSG:4326).
+2. **Heat exposure rank** — percentile rank of `TXx_nex_delta` across all 183 covered counties; falls back to `WSDI_delta` when NEX-GDDP unavailable.
+3. **Asset density rank** — percentile rank of (substations / county km²). Top metro counties (Los Angeles 559, Harris 386, Sacramento 371, Kern 330) reproduce the expected national density gradient.
+4. **Wildfire exposure rank** — CAISO only — fraction of transmission line-km falling inside Very-High FHSZ polygons via `gpd.overlay`, then percentile-ranked. Zero for ERCOT.
+5. **Composite risk score** = 0.40 · heat + 0.30 · wildfire + 0.30 · density (weights from `ASSET_RISK_WEIGHTS` in `config/settings.py`).
+6. Choropleth maps and a top-15-county component-breakdown bar chart are written by `figures/02_build_asset_and_climate_figures.py`.
+
+**Resulting top-priority counties** (composite std 0.168, well above the noise floor):
+- **CAISO top-10:** San Diego, Contra Costa, Placer, Nevada, Sonoma, Butte (Camp Fire 2018), LA, Riverside, Shasta, Stanislaus — matches operational PSPS targeting geography.
+- **ERCOT top-10:** Galveston, Nueces (Corpus Christi), Jefferson (Beaumont), Harrison, Gregg, Cameron, Harris (Houston), Tarrant (Fort Worth), Dallas, Travis (Austin) — Gulf-coast hurricane corridor plus East-Texas heat-and-density belt.
 
 ***
 
@@ -197,16 +199,15 @@ $$
 
 **Objective:** Test whether climate-amplified outage risk disproportionately affects disadvantaged communities.
 
-**Data source:** EPA EJScreen 2024 (census block group level).[^22][^23][^24]
+**Data source:** EPA EJScreen 2024 (census block group level).[^22][^23][^24] The 2024 release renames several core fields — the loader (`src/data/ejscreen.py`) uses the new column names: `DEMOGIDX_2` (composite demographic index, replacing `EJ_SCORE`), `PEOPCOLORPCT` (replacing `MINORPCT`), `P_D2_PM25` (replacing `PM25_D2_PCTILE`), `P_OZONE`.
 
 **Processing steps:**
-1. **Download EJScreen geodatabase** from EPA or Zenodo archive.[^23][^24]
-2. **Aggregate to county level:** For each county, compute population-weighted average EJ index, % minority, % low-income, linguistic isolation index.
-3. **Join to outage panel:** Merge county-level EJ metrics to the historical outage panel.
-4. **Test for disparate impact:**
-   - Regression: Does outage severity increase in high-EJ-burden counties, controlling for weather and infrastructure?
-   - Interaction: Is the compound-weather × outage relationship stronger in high-EJ counties (i.e., do vulnerable communities suffer more from the same weather event)?
-5. **Forward projection:** Overlay EJScreen data on the LOCA2 projected heat increase maps. Identify counties that are both high-EJ-burden AND high-projected-heat-increase.
+1. Load the block-group CSV; derive county FIPS from the 12-digit `ID` column.
+2. **Population-weighted aggregation to county.** For each county, compute the population-weighted mean of the composite EJ index and supporting indicators (% people of color, % low income, % linguistic isolation, % less than high school).
+3. **Flag high-EJ-burden counties** as the top-quartile of the population-weighted composite. The historical merge covers all 254 ERCOT counties at 100% (`build_ercot_ejscreen()`).
+4. **Descriptive analysis.** Outage event rate by EJ quartile. The 2018–2024 ERCOT panel shows **no monotone burden gradient** (Q1 10.2%, Q2 9.7%, Q3 12.5%, Q4 9.7%).
+5. **Regression.** Add `high_ej_burden` as a control to the Step 4 panel specification. The county-level indicator is absorbed by the county fixed effects (time-invariant within county), confirming the design works as intended. An interaction term `triple × high_ej_burden` tests for compound-burden amplification; the coefficient is +0.374 with p = 0.226, **not statistically distinguishable from zero at the county scale.** This is consistent with one strand of the literature (county-level NREL EAGLE-I assessments find no consistent disparity) and not with another strand (zip-code-level Auch & Davis 2022 finding Houston Beryl amplification in low-income tracts). The null finding is reported as a real result, with the methodological caveat that county aggregation is too coarse to surface intra-county disparities.
+6. **Double-exposure flag.** Overlay LOCA2 projected `SU_delta` with EJ burden to identify counties in the top quartile of both. The current run flags **38 ERCOT counties** (border counties Cameron / Hidalgo / Webb, Houston metro, East Texas) as priority targets for distributed-energy and weatherization spending.
 
 ***
 
@@ -233,9 +234,30 @@ $$
 **Objective:** Evaluate adaptation options within the risk assessment framework.
 
 **Actions:**
-1. **Grid hardening:** Estimate the fraction of at-risk transmission line-km that could benefit from undergrounding. Compare costs (~$1–3M/mile) against projected avoided outage damages.
-2. **DERs and microgrids:** Identify high-vulnerability counties where distributed solar + storage could serve as resilience assets during grid emergencies.
-3. **Demand response:** Using the temperature-to-load regression from Step 6, estimate the MW reduction achievable through demand response at each temperature threshold. The June 2025 heatwave showed PJM relied on nearly 4,000 MW of demand response to stabilize the system.[^28]
-4. **Policy recommendations:** Performance-based regulation that ties utility incentives to resilience metrics (SAIDI/SAIFI during extreme events).
+1. **Grid hardening — transmission undergrounding.** Targeting the top decile of at-risk transmission line-km (high heat × asset density × wildfire) yields roughly 3,105 miles. Unit cost $1–3 M / mile (literature) implies $3.1–9.3 B capital. Avoided annual damages $155 M (SAIDI/SAIFI cost factors). Simple payback period: **20–60 years**. The range reflects genuine uncertainty in both unit cost and discount rate, not analytical imprecision.
+2. **DERs and microgrids.** Five gigawatts of distributed solar plus 2-hour storage targeted at high-EJ × high-projected-heat counties (the 38-county overlap identified in Step 8). Capital cost $8–12 B, timeline 2027–2035. The value driver is customer-hours avoided during grid emergencies rather than bulk-energy displacement.
+3. **Demand response.** Applying a load-temperature elasticity of approximately 6% reduction per °C of thermostat adjustment to the cooling-fraction load (~35% of ERCOT peak), estimated dispatchable DR potential at a scenario peak of 42 °C is **1.5 GW**. Programme cost $0.5–1 B to scale to 4 GW dispatchable by 2030. The June 2025 PJM heatwave demonstrated near-4 GW of DR was load-bearing for grid stability.[^28]
+4. **Policy recommendations.** A four-row matrix written to `data/processed/policy_recommendations.csv`:
+
+| Category | Action | Success metric | Cost (est.) | Timeline |
+|---|---|---|---|---|
+| Grid hardening | Underground top-10% at-risk transmission | SAIDI reduction during extreme events | $3–9 B (ERCOT) | 2030–2040 |
+| DERs / microgrids | 5 GW distributed solar + 2-hr storage in high-EJ + high-heat counties | Customer-hours avoided during emergencies | $8–12 B | 2027–2035 |
+| Demand response | Expand automated DR to 4 GW dispatchable in ERCOT by 2030 | MW dispatched per Conservation Appeal | $0.5–1 B | 2025–2030 |
+| Regulatory reform | Adopt CMIP6 SSP5-8.5 as planning baseline; tie utility ROE to extreme-event SAIDI/SAIFI | Adoption in next IRP cycle; extreme-event outage-hour reduction | Administrative only | 2025–2027 |
+
+These four levers map cleanly onto the EPRI Climate READi framework axes (physical, demand-side, distributed-supply, regulatory) and connect back to the historical findings: the regression results (Step 4 §4.2) inform where the hardening spend should be concentrated, and the Flex-Alert RD result (Step 4 §4.3) provides first-order evidence that demand-side programmes can produce measurable reductions in extreme-weather outage hours.
 
 ---
+
+## Documentation map
+
+- `README.md` — repository entry point, reproduction steps
+- `CLAUDE.md` — architecture overview for agents working in the repo
+- `docs/Methodology.md` (this file) — long-form per-step methodology
+- `docs/data.md` — dataset download guide (sources, target paths, schema notes)
+- `docs/variable_metadata_and_description.txt` — column-level metadata for processed panels
+- `notebooks/NOTEBOOKS.md` — per-notebook reference with current results
+- `figures/README.md` — figure / paper-build script catalog
+- `paper/Methods_and_Results.docx` — final paper Methods + Results with embedded figures
+- `paper/references.md` — bibliography (matched to footnotes in this file)

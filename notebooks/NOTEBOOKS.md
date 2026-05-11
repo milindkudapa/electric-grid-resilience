@@ -288,21 +288,37 @@ CAISO RD                         robust negative              robust negative (u
 
 ---
 
-## NB05 — Climate Projection Panel (LOCA2)
+## NB05 — Climate Projection Panel
 
-**Objective.** Project future extreme heat under SSP2-4.5 and SSP5-8.5 from the USGS CMIP6-LOCA2 county-summarised dataset (27 GCMs, 1950–2100, 36 annual Climdex metrics per county).
+**Objective.** Project future extreme heat for ERCOT and CAISO counties under SSP2-4.5 and SSP5-8.5 for two windows: near-term (2030–2059) and mid-century (2050–2079).
 
-**Inputs.** `data/raw/loca2/*.csv` containing `ssp245` or `ssp585` in the filename. **Currently missing.**
+**Inputs (any one of three sources, in order of preference).**
+1. `data/raw/loca2/*.nc` — USGS CMIP6-LOCA2 thresholds NetCDF (primary, when available).
+2. `data/raw/loca2/*.csv` — USGS legacy CSV release containing `ssp245` or `ssp585` in the filename.
+3. **AR6 regional-delta synthesis fallback** — `src/data/loca2_ar6_synthesis.py` applies IPCC AR6 WGI Atlas ensemble-median deltas (CNA for ERCOT, WNA for CAISO) to the observed 2018–2024 weather baseline. Used when raw LOCA2 is unavailable.
 
 **Method.**
-1. Load and concatenate all county summaries; standardise to `(fips, year, scenario, gcm, variable, value)`.
-2. Compute baseline climatology from 1991–2020.
-3. Compute change factors for `near` (2030–2059) and `mid` (2050–2079) periods relative to baseline. Multi-model ensemble: report median + IQR across 27 GCMs.
-4. Key variables: `TXx` (annual max temperature), `WSDI` (warm spell duration index), `SU` (summer days > 25°C), `TR` (tropical nights), `Rx1day` (max 1-day precipitation), `CDD` (consecutive dry days).
+1. Try to load the NetCDF; fall back to per-scenario CSV; fall back to AR6 synthesis. Wired in `src/data/loca2.py::build_projection_panel`.
+2. Compute baseline climatology from 1991–2020 (or use the observed 2018–2024 baseline under the AR6 fallback).
+3. Compute change factors for the near and mid periods relative to baseline.
+4. Key variables: `TXx` (annual max temperature), `WSDI` (warm spell duration index), `SU` (summer days > 25°C), `TR` (tropical nights), `TXge90F`, `TXge100F`, `Rx1day`, `CDD`, `R20mm`.
 
-**Outputs.** `data/processed/loca2_projections_{ercot,caiso}.csv` with one row per (fips, scenario, period_label, variable) and ensemble statistics.
+**Cross-validation track — NEX-GDDP-CMIP6.** `src/data/nex_gddp_loader.py` streams daily tasmax NetCDFs from `s3://nex-gddp-cmip6/` (anonymous), subsets to the ERCOT+CAISO bounding box, computes annual TXx, and applies point-in-polygon zonal statistics to the TIGER county geometry. A 5-year proof-of-concept (ACCESS-CM2, SSP5-8.5, 2055–2059) was processed; the result feeds `data/processed/nex_gddp_poc_txx.csv` and is folded into the projection CSVs as a `TXx_nex_delta` column via `figures/04_inject_nex_gddp_delta.py`. Agreement with AR6: 0.5 °C at the regional 99th-percentile, 2.73 °C RMSE per county.
 
-**Cannot run without raw LOCA2 data.** All consumer notebooks (06, 07, 08, 10) have `if loca2_path.exists():` guards and degrade gracefully.
+**Outputs.** `data/processed/loca2_projections_{ercot,caiso}.csv` (39 columns per row, including `TXx_median`, `TXx_p10/p90`, `TXx_delta`, `TXx_nex_delta`, and the same suite for SU, TR, WSDI, TXge90F, TXge100F, Rx1day, CDD, R20mm). 532 ERCOT rows + 200 CAISO rows.
+
+**Existing results (AR6 fallback, SSP5-8.5 mid-century).**
+```
+                           ERCOT     CAISO
+baseline TXx mean (°C)      40.3      38.4
+mid-century TXx mean (°C)   43.8      41.4
+99th-pct TXx (°C)           47.2      49.5  (inland-desert pull)
+WSDI delta (days)           +55       +35
+
+NEX-GDDP cross-validation (ACCESS-CM2, SSP5-8.5, 2055–2059):
+99th-pct TXx (°C)           46.7      49.5     ≈ AR6 within 0.5 °C
+per-county RMSE             —         —        2.73 °C across 183 counties
+```
 
 ---
 
@@ -324,9 +340,21 @@ CAISO RD                         robust negative              robust negative (u
 5. **Capacity margin** — projected supply minus projected demand. Negative = deficit (MW).
 6. **Sensitivity table** — margin across (temperature uncertainty × demand growth) grid.
 
-**Outputs.** Sensitivity heatmap, capacity margin tables (in-memory or PNG).
+**Outputs.** `data/processed/ercot_stress_sensitivity.png`, capacity-margin tables (in-memory).
 
-**Without LOCA2:** ERCOT path crashes (no fallback). CAISO path falls back to hardcoded `caiso_temp = 43.0`. Need to add an ERCOT fallback constant.
+**Existing results (SSP5-8.5 mid-century).**
+```
+                              ERCOT     CAISO
+Scenario temperature (°C)     47.2      49.5
+Projected peak demand (MW) 109,238   108,897
+Available supply, derated   81,104    72,931
+Capacity margin             −28,134   −35,966
+Margin %                    −25.8%    −33.0%
+Customers affected       3,193,584 4,623,866
+Status                      DEFICIT   DEFICIT
+```
+
+**Caveats.** ERCOT hourly load CSVs failed to parse in NB06's current loader; both stress tests use a placeholder quadratic load model (intercept 20,000 MW, b 800 MW/°C, c 10 MW/°C²). CAISO 109 GW peak demand is ~2.1× the 2024 system peak of ~52 GW and only reproduces under an electrification-conditional growth path; under a conservative 1.5× growth assumption the deficit narrows to 15–20%.
 
 ---
 
@@ -335,22 +363,31 @@ CAISO RD                         robust negative              robust negative (u
 **Objective.** Overlay HIFLD grid infrastructure (substations, transmission lines) with LOCA2 projected heat hazard and CAISO wildfire zones to produce a county-level asset risk score.
 
 **Inputs.**
-- `data/raw/hifld/Electric_Substations.shp` — 75k+ substations with voltage class
-- `data/raw/hifld/Electric_Power_Transmission_Lines.shp` — 70k+ line segments
-- `data/raw/hifld/cal_fire_fhsz/` — California Fire Hazard Severity Zones (CAISO only)
-- `loca2_projections_{ercot,caiso}.csv` for `WSDI_delta` (heat exposure)
+- `data/raw/hifld/Electric_Substations.shp` — 9,461 HIFLD substations for TX + CA, downloaded via `figures/05_download_hifld_substations.py` from the ArcGIS REST endpoint (point geometry, EPSG:4326).
+- `data/raw/hifld/Electric_Power_Transmission_Lines.shp` — 94,619 line segments
+- `data/raw/hifld/cal_fire_fhsz/FHSZ_SRA.shp` — 18,423 CAL FIRE State Responsibility Area FHSZ polygons (8,411 Very High, 5,824 High, 4,188 Moderate), downloaded via `figures/06_download_cal_fire_fhsz.py`.
+- `loca2_projections_{ercot,caiso}.csv` for the heat-exposure component (uses `TXx_nex_delta` when available, falls back to `WSDI_delta`).
 
 **Method.**
-1. Spatial-join substations and transmission-line vertices to counties.
-2. **`heat_exposure_rank`** — percentile rank of `WSDI_delta` across counties.
-3. **`asset_density_rank`** — percentile rank of (substations + line-km) per km² county area.
-4. **`wildfire_exposure_rank`** — CAISO only — fraction of transmission line-km within "Very High" Fire Hazard Severity Zones. Zero for ERCOT.
+1. Spatial-join substations and transmission-line representative points to counties (EPSG:4326).
+2. **`heat_exposure_rank`** — percentile rank of `TXx_nex_delta` across all 183 covered counties; falls back to `WSDI_delta` when NEX-GDDP not available.
+3. **`asset_density_rank`** — percentile rank of (substations / county km²).
+4. **`wildfire_exposure_rank`** — CAISO only — fraction of transmission line-km within Very-High FHSZ polygons, then percentile-ranked. Zero for ERCOT.
 5. **Composite risk score** = 0.40 · heat + 0.30 · wildfire + 0.30 · density (weights from `ASSET_RISK_WEIGHTS` in `config/settings.py`).
-6. Rank counties; top quartile flagged as priority.
 
-**Outputs.** `data/processed/asset_risk_scores.csv`, choropleth maps.
+**Outputs.** `data/processed/asset_risk_scores.csv`, plus `asset_vulnerability_map.png`, `asset_top15_breakdown.png` (from `figures/02_build_asset_and_climate_figures.py`).
 
-**Without LOCA2:** `heat_exposure_rank` becomes 0 → composite collapses to wildfire + asset density only. Acceptable degradation.
+**Existing results.**
+```
+183 counties scored (133 ERCOT + 50 CAISO).
+Composite score std = 0.168 (heat std 0.29, wildfire std 0.27, density std 0.29).
+
+Top-10 priority counties:
+  CAISO: San Diego, Contra Costa, Placer, Nevada, Sonoma, Butte (Camp Fire), LA, Riverside,
+         Shasta, Stanislaus
+  ERCOT: Galveston, Nueces (Corpus Christi), Jefferson (Beaumont), Harrison, Gregg,
+         Cameron, Harris (Houston), Tarrant (Fort Worth), Dallas, Travis (Austin)
+```
 
 ---
 
@@ -370,7 +407,28 @@ CAISO RD                         robust negative              robust negative (u
 4. **Interaction term** — `compound_triple × high_ej_burden` tests whether compound events disproportionately affect high-EJ counties (climate justice amplification).
 5. **Forward projection** — overlay LOCA2 `SU_delta` (additional summer days by 2050) with EJ burden to identify counties with both high projected heat increase AND high disadvantage (`both_high` flag).
 
-**Outputs.** `data/processed/ejscreen_county.csv`, double-exposure choropleth.
+**Outputs.** `data/processed/ercot_ej_outage_rates.png` plus in-notebook regression tables.
+
+**Existing results.**
+```
+254 ERCOT EJScreen counties merged, 100% coverage.
+Composite index: DEMOGIDX_2 (avg of % people of color + % low-income, EJScreen 2024 schema).
+
+Outage event rate by EJ quartile (no monotone gradient):
+  Q1 (lowest)  10.2%
+  Q2            9.7%
+  Q3           12.5%
+  Q4 (highest)  9.7%
+
+Regression (county FE, log1p customer-hours):
+  cat_heatwave_day  −0.329  (p<0.001)
+  cat_triple        +2.909  (p<0.001)
+  high_ej_burden    absorbed by county FE (time-invariant)
+  triple × high_ej_burden  +0.374 (p=0.226)  — NOT significant
+
+38 ERCOT counties flagged HIGH-EJ × HIGH-projected-heat (top quartile of both):
+  border counties (Cameron, Hidalgo, Webb) + Houston metro + East Texas.
+```
 
 ---
 
@@ -400,7 +458,27 @@ CAISO RD                         robust negative              robust negative (u
 3. **Demand response** — projected MW reduction at scenario temperature given a 6% load reduction per °C thermostat adjustment, applied to 35% cooling-fraction load.
 4. **Policy recommendations table** — actions, success metrics, implementation costs, responsible authority.
 
-**Outputs.** Recommendation tables.
+**Outputs.** `data/processed/demand_response_curve.png`, `policy_recommendations.csv`.
+
+**Existing results.**
+```
+Grid hardening (undergrounding 3,105 miles top-risk transmission):
+  cost     $3.1–9.3 B
+  avoided  $155 M / year baseline (SAIDI/SAIFI cost)
+  payback  20–60 years
+
+Demand response (35% cooling-fraction load, 6%/°C reduction):
+  potential at 42 °C  ≈ 1.5 GW
+
+High-heat priority counties (top quartile WSDI change): 133
+DER / microgrid targets: high-EJ × high-heat overlap counties.
+
+Policy recommendation table (4 rows):
+  Grid hardening      | undergrounding top decile of at-risk transmission
+  DERs / microgrids   | 5 GW distributed solar + 2-hr storage
+  Demand response     | 4 GW dispatchable in ERCOT by 2030
+  Regulatory reform   | adopt SSP5-8.5 baseline; tie ROE to extreme-event SAIDI/SAIFI
+```
 
 ---
 
@@ -408,8 +486,10 @@ CAISO RD                         robust negative              robust negative (u
 
 - `src/data/eagle_i.py` — outage CSV loader + 15-min → daily aggregator + denominator imputation
 - `src/data/noaa_isd.py` — ISD downloader + parser + station-county spatial join + daily aggregator with QC
-- `src/data/loca2.py` — LOCA2 loader + climatology + change factor computation
-- `src/data/ejscreen.py` — population-weighted block-group → county aggregation
+- `src/data/loca2.py` — LOCA2 NetCDF/CSV loader + climatology + change factor computation; falls back to AR6 synthesis if raw data absent
+- `src/data/loca2_ar6_synthesis.py` — AR6 WGI Atlas regional-delta synthesis (CNA/WNA) applied to observed baseline; produces canonical projection schema
+- `src/data/nex_gddp_loader.py` — anonymous AWS S3 streaming of NEX-GDDP-CMIP6 daily tasmax NetCDFs + zonal statistics to county polygons
+- `src/data/ejscreen.py` — population-weighted block-group → county aggregation; EJScreen 2024 schema (`DEMOGIDX_2`, `PEOPCOLORPCT`, `P_D2_PM25`, `P_OZONE`)
 - `src/analysis/compound_flags.py` — heatwave + compound flag derivation + `weather_category` + outage-rate-by-category summariser
 - `src/analysis/panel_regression.py` — `run_panel_ols` (county+month FE, log1p, mutually exclusive categories), `run_logit` (LPM with county FE; supports `clogit` and `pooled_logit` for comparison), `summarise_results`
 - `src/analysis/rd_analysis.py` — IK bandwidth selection, RD estimator, bandwidth sensitivity
