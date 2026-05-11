@@ -33,16 +33,16 @@ COL_GEOID   = "ID"
 COL_STATE   = "ST_ABBREV"
 COL_POP     = "ACSTOTPOP"   # ACS total population
 
-# Environmental Justice Index scores
-COL_EJ_INDEX    = "EJ_SCORE"       # composite EJ index
-COL_PCT_MINORIY = "MINORPCT"       # % minority population
+# Environmental Justice Index scores (EJScreen 2024 schema)
+COL_EJ_INDEX    = "DEMOGIDX_2"     # composite demographic index (avg of minority% + low-income%)
+COL_PCT_MINORIY = "PEOPCOLORPCT"   # % people of color (renamed from MINORPCT)
 COL_PCT_LOWINC  = "LOWINCPCT"      # % low income
 COL_LING_ISO    = "LINGISOPCT"     # % linguistic isolation
 COL_LESS_HS     = "LESSHSPCT"      # % less than high school education
 
 # Environmental burden indicators (percentile ranks within US)
-COL_PM25        = "PM25_D2_PCTILE"
-COL_OZONE       = "OZONE_D2_PCTILE"
+COL_PM25        = "P_D2_PM25"
+COL_OZONE       = "P_OZONE"
 COL_HEATSTRESS  = "HEATSTRESS_SCORE"  # may not exist in all releases
 
 EJ_INDICATOR_COLS = [

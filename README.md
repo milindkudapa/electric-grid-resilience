@@ -57,7 +57,9 @@ project/
 │   └── download_data.py     # Prints URLs + auto-downloads datasets
 ├── pyproject.toml           # Dependencies (managed with uv)
 ├── uv.lock                  # Locked versions (commit this)
-└── Methodolgy.md            # Full step-by-step methodology
+├── paper/                  # Final deliverables (Methods_and_Results.docx, references.md, rubric)
+├── figures/                # Standalone scripts that build paper figures + docx
+└── docs/                   # Long-form write-ups (Methodology.md, data.md, variable metadata)
 ```
 
 ---
@@ -69,7 +71,7 @@ project/
 | 1 | Select ERCOT (TX) + CAISO (CA), set 2018–2024 historical and 2030–2060 projection periods | County FIPS lists, spatial maps |
 | 2 | Aggregate EAGLE-I 15-min outage data → county-day panel | `outage_panel_ercot.csv`, `outage_panel_caiso.csv` |
 | 3 | Download NOAA ISD stations → county-day weather; derive compound event flags | `weather_panel_ercot/caiso.csv` |
-| 4 | Merge panels; two-way FE OLS; logistic regression; RD on heat alert thresholds | Coefficient tables, RD estimate |
+| 4 | Merge panels; county+month FE OLS on log1p(customer_hours); LPM with county FE on event flag; RD on heat alert thresholds | Coefficient tables, RD estimate |
 | 5 | Load USGS LOCA2 (27 GCMs); compute climatologies and Δ change factors | `loca2_projections_ercot/caiso.csv` |
 | 6 | 2050 worst-week stress test: project demand, derate supply, compute capacity margin | Capacity deficit (MW), sensitivity table |
 | 7 | Overlay HIFLD substations + lines with LOCA2 heat and CAISO wildfire zones | Asset risk scores, choropleth maps |
@@ -80,15 +82,20 @@ project/
 **Regression model (Step 4):**
 
 $$
-\text{OutageSeverity}_{ct} = \beta_1\,\text{HeatwaveDay}_{ct} + \beta_2\,\text{CompoundHeatWind}_{ct} + \beta_3\,\text{CompoundTriple}_{ct} + \gamma X_{ct} + \alpha_c + \delta_t + \varepsilon_{ct}
+\log(1+\text{TotalCustomerHours}_{ct}) = \alpha_c + \gamma_{m(t)} + \sum_{k\in\mathcal{K}} \beta_k\,\mathbb{1}[\text{Category}_{ct}=k] + \varepsilon_{ct}
 $$
 
-- $\alpha_c$ = county fixed effects; $\delta_t$ = day fixed effects; SEs clustered at county level
-- Compound triple threshold (heat + wind > 15 m/s + precip > 10 mm) is the 52× risk amplifier from the Nature 2025 EAGLE-I study
+- $\alpha_c$ = county fixed effects (absorbs time-invariant infrastructure differences)
+- $\gamma_{m(t)}$ = month-of-year fixed effects (absorbs the seasonal cycle). Day-of-sample fixed effects intentionally omitted because they absorb the spatial weather signal — heatwaves hit all counties simultaneously, and time FE would leave only edge-of-heat-dome residual variation.
+- $\mathcal{K} = \{$heatwave_only, heat_wind, heat_precip, triple$\}$; `normal` is the omitted baseline. Mutually exclusive categories avoid the multicollinearity of nested compound flags.
+- $\log(1+\cdot)$ transform handles the zero-inflated right-skewed outage outcome.
+- SEs clustered at county. Binary `outage_event_flag` is modelled with a Linear Probability Model (PanelOLS with county FE).
+- Compound triple threshold (heat + wind > 15 m/s + precip > 10 mm) is the 52× risk amplifier from the Nature 2025 EAGLE-I study.
 
 **RD design (Step 4):**
 - Running variable: daily Tmax; cutoffs: 36 °C (ERCOT Conservation Appeal), 38 °C (CAISO Flex Alert)
-- Identifies causal effect of crossing emergency threshold on customer-hours of outage
+- ERCOT RD is bandwidth-unstable (sign flips at wider bandwidths) — reported as a bandwidth sensitivity table only, not as a discontinuity estimate.
+- CAISO RD is robust (same sign, monotone decay across all bandwidths). Reinterpreted as **Flex Alert program effectiveness**: a negative τ above the cutoff indicates the alert reduces outages by ~3,200 customer-hours.
 
 ---
 
@@ -136,6 +143,8 @@ uv run python scripts/download_data.py   # prints URLs and target paths for each
 uv run jupyter lab notebooks/
 ```
 Start with `01_study_area.ipynb` and proceed sequentially. Each notebook reads from `data/raw/` and writes outputs to `data/processed/`.
+
+For per-notebook objectives, methods, dependencies, and current results, see [`notebooks/NOTEBOOKS.md`](notebooks/NOTEBOOKS.md).
 
 ---
 

@@ -14,12 +14,12 @@ The core data structure is a county × day panel for **ERCOT** (254 TX counties)
 | 02 | ✅ ran (denominator imputation applied) | `outage_panel_{ercot,caiso}.csv` |
 | 03 | ✅ ran (precip + tmax QC applied) | `weather_panel_{ercot,caiso}.csv` |
 | 04 | ✅ ran (county+month FE, log1p, mutually exclusive categories, LPM) | `merged_panel_{ercot,caiso}.csv`, RD/heatmap PNGs |
-| 05 | ❌ not run — needs LOCA2 raw data | `loca2_projections_{ercot,caiso}.csv` |
-| 06 | ❌ not run — needs LOCA2 + ERCOT load + EIA-860 | (in-memory only) |
-| 07 | ❌ not run — needs LOCA2 + HIFLD substations + transmission lines | `asset_risk_scores.csv` |
-| 08 | ❌ not run — needs EJScreen + LOCA2 (optional) | `ejscreen_county.csv` |
-| 09 | ❌ not run — qualitative, no data deps | (tables) |
-| 10 | ❌ not run — needs LOCA2 + EJScreen | (recommendations) |
+| 05 | ✅ ran on AR6 fallback — 532 ERCOT + 200 CAISO projection rows | `loca2_projections_{ercot,caiso}.csv`, `ercot_wsdi_delta.png` |
+| 06 | ✅ ran — 2050 SSP585: ERCOT −28 GW (25.8%) deficit, CAISO −36 GW (33.0%) deficit | `ercot_stress_sensitivity.png` |
+| 07 | ✅ ran — 9,461 HIFLD substations (TX+CA) + 18,423 CAL FIRE FHSZ polygons + NEX-GDDP per-county heat delta; composite std 0.168 | `asset_risk_scores.csv` |
+| 08 | ✅ ran — EJ regression + 38 ERCOT counties flagged HIGH-EJ × HIGH-projected-heat | `ercot_ej_outage_rates.png` |
+| 09 | ✅ ran (qualitative tables) | `interdependency_matrix.png`, `policy_recommendations.csv` |
+| 10 | ✅ ran — undergrounding $3-9 B / 20-60 yr payback; DR 1.5 GW; 133 high-heat DER-priority counties | `demand_response_curve.png` |
 
 ---
 

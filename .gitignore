@@ -3,14 +3,23 @@ __pycache__/
 *.pyc
 *.pyo
 .DS_Store
-data/raw/
-data/processed/
-*.csv
-*.parquet
-*.nc
-*.h5
 .env
 *.egg-info/
 dist/
 build/
 .ipynb_checkpoints/
+
+# Raw inputs are large (11 GB) and re-downloadable — don't commit.
+data/raw/
+
+# NetCDF + HDF5 binary blobs anywhere — large, not text-diffable.
+*.nc
+*.h5
+
+# Default-ignore CSV/Parquet anywhere, but un-ignore inside data/processed/.
+*.csv
+*.parquet
+
+# Whitelist the processed pipeline outputs (~126 MB total, largest file 35 MB).
+!data/processed/
+!data/processed/**

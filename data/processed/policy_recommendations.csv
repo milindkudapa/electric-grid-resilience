@@ -1,0 +1,5 @@
+Category,Action,Success metric,Cost (est.),Timeline
+Grid hardening,Underground top-10% at-risk transmission (high heat + asset density),SAIDI reduction during extreme events,$3-9B ERCOT,2030-2040
+DERs / microgrids,5 GW distributed solar + 2-hr storage in high-EJ + high-heat counties,Customer-hours avoided during grid emergencies,$8-12B,2027-2035
+Demand response,Expand automated DR to 4 GW dispatchable in ERCOT by 2030,MW dispatched per Conservation Appeal event,$0.5-1B,2025-2030
+Regulatory reform,Adopt CMIP6 SSP5-8.5 as planning baseline; tie utility ROE to extreme-event SAIDI/SAIFI,Adoption in next IRP cycle; reduction in extreme-event outage hours,Administrative only,2025-2027

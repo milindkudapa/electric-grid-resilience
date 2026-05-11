@@ -1,0 +1,5 @@
+Trigger,Second-order effect,In EAGLE-I
+Grid outage > 2h,Gas compressor stations lose power -> pipeline pressure drop -> gas plant curtailment,No
+Grid outage > 4h,Water pumping stations fail -> reduced fire suppression capacity (CAISO),No
+Grid outage > 8h,Cell tower backup batteries exhausted -> loss of 911 communications,No
+Outage + extreme heat,Loss of AC -> heat mortality spike; healthcare facility stress,Partially
