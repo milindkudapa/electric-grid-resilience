@@ -23,3 +23,10 @@ data/raw/
 # Whitelist the processed pipeline outputs (~126 MB total, largest file 35 MB).
 !data/processed/
 !data/processed/**
+
+# Local deliverables — not tracked.
+paper/
+figures/03_build_paper_docx.py
+figures/07_build_results_plain_docx.py
+figures/08_build_appendix_docx.py
+figures/09_build_references_docx.py

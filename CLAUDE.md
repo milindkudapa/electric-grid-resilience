@@ -38,9 +38,8 @@ electric-grid-resilience/
 ├── src/                   # data + analysis + viz modules
 ├── notebooks/             # 01–10 + NOTEBOOKS.md reference
 ├── scripts/               # Download helpers
-├── figures/               # Standalone figure + paper-build scripts
-├── docs/                  # Long-form methodology + data guide
-└── paper/                 # Final deliverable docx + references + rubric
+├── figures/               # Standalone figure scripts
+└── docs/                  # Long-form methodology + data guide
 ```
 
 ## Source modules in `src/`
@@ -62,13 +61,12 @@ electric-grid-resilience/
 ### Visualisation
 - `src/viz/maps.py` — Choropleths, heatmaps, RD bin-scatter plots, sensitivity-grid heatmap, outage-rate bar charts.
 
-## Figure / paper build pipeline (`figures/`)
+## Figure build pipeline (`figures/`)
 
-Standalone scripts that consume `data/processed/` and produce the figures + final docx. Run in any order after the notebooks; idempotent.
+Standalone scripts that consume `data/processed/` and produce figures. Run in any order after the notebooks; idempotent.
 
 - `figures/01_build_descriptive_figures.py` — Annual outage burden, Uri/Beryl event timeseries, heat dose-response curve, compound wind×precip scatter, seasonal heatmap, county-burden choropleth, heatwave duration histogram (7 PNGs).
 - `figures/02_build_asset_and_climate_figures.py` — Asset vulnerability map, NEX-GDDP TXx delta map, top-15 composite breakdown, AR6 vs NEX-GDDP scatter (4 PNGs).
-- `figures/03_build_paper_docx.py` — Assembles `paper/Methods_and_Results.docx` (Methods §3 + Results §4 with 21 embedded figures and ~10 tables).
 - `figures/04_inject_nex_gddp_delta.py` — Computes per-county NEX-GDDP TXx delta vs observed baseline, writes `TXx_nex_delta` column into the projection CSVs.
 - `figures/05_download_hifld_substations.py` — Paginated download of HIFLD substations (TX + CA, 9,461 records) from ArcGIS REST. Reprojects from Web Mercator to EPSG:4326.
 - `figures/06_download_cal_fire_fhsz.py` — Paginated download of CAL FIRE State Responsibility Area FHSZ (18,423 polygons). Renames `FHSZ_Description` → `HAZ_CLASS` to match NB07 expectations.
@@ -121,10 +119,6 @@ A parallel **NEX-GDDP-CMIP6 fidelity check** runs out of `src/data/nex_gddp_load
 ## Notebook execution status
 
 All 10 notebooks ✅ ran end-to-end on the AR6 fallback path. See `notebooks/NOTEBOOKS.md` for per-notebook objectives, methods, inputs, outputs, and current numerical results (regression coefficients, RD bandwidth tables, stress-test deficits, asset-risk top-counties).
-
-## Paper
-
-Final deliverable is `paper/Methods_and_Results.docx`. Rebuild from `figures/03_build_paper_docx.py`. The build script depends only on `data/processed/` outputs, so anyone cloning the repo + running `uv sync` + invoking the figures scripts can regenerate the paper without re-running the heavy notebooks.
 
 ## Common pitfalls
 

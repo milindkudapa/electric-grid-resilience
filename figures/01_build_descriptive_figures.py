@@ -1,4 +1,4 @@
-"""Generate additional figures for the paper from processed panels."""
+"""Generate descriptive figures from processed panels."""
 import os
 from pathlib import Path
 

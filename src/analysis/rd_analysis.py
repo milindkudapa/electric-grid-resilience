@@ -249,7 +249,7 @@ def rd_bandwidth_sensitivity(
 ) -> pd.DataFrame:
     """
     Run RD at multiple bandwidths and return a comparison DataFrame.
-    Useful for robustness checks in the paper.
+    Useful for robustness checks.
     """
     if bandwidths is None:
         bandwidths = [1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0]

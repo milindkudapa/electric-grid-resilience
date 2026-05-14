@@ -139,7 +139,7 @@ NB06 currently falls back to a placeholder quadratic load model because the exis
 
 ## Processed outputs
 
-Notebooks write the following files to `data/processed/`. These are committed to git so figures + tables in the paper can be regenerated from a fresh clone without re-running the heavy notebooks.
+Notebooks write the following files to `data/processed/`. These are committed to git so figures can be regenerated from a fresh clone without re-running the heavy notebooks.
 
 ### County panels
 
@@ -157,7 +157,7 @@ Notebooks write the following files to `data/processed/`. These are committed to
 | `asset_risk_scores.csv` | NB07 | NB10, figures/02 |
 | `failure_mode_analysis.csv` | NB09 | (qualitative) |
 | `regulatory_gap_analysis.csv` | NB09 | (qualitative) |
-| `policy_recommendations.csv` | NB10 | (paper) |
+| `policy_recommendations.csv` | NB10 | NB10 |
 
 ### Figures (PNGs, all in `data/processed/`)
 

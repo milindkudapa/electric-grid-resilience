@@ -26,8 +26,6 @@ A bottom-up physical-climate risk assessment for two contrasting U.S. balancing 
 | Asset-vulnerability top-priority counties | LA, San Diego, Contra Costa, Galveston, Houston (Harris), Camp-Fire-corridor Butte |
 | Environmental-justice interaction (triple × high_EJ_burden) | +0.374 log-units, p = 0.226 (null at county scale) |
 
-Detailed tables and figures live in `paper/Methods_and_Results.docx`.
-
 ---
 
 ## Repository layout
@@ -84,10 +82,9 @@ electric-grid-resilience/
 ├── scripts/
 │   └── download_data.py         # Print URLs / auto-download orchestration
 │
-├── figures/                     # Standalone scripts that build paper figures + .docx
+├── figures/                     # Standalone scripts that build figures
 │   ├── 01_build_descriptive_figures.py   # Annual escalation, Uri/Beryl, dose-response, etc.
 │   ├── 02_build_asset_and_climate_figures.py  # Asset map, TXx delta map, cross-validation
-│   ├── 03_build_paper_docx.py            # Assembles Methods_and_Results.docx
 │   ├── 04_inject_nex_gddp_delta.py       # Adds TXx_nex_delta column to projection CSVs
 │   ├── 05_download_hifld_substations.py  # ArcGIS REST paginator for HIFLD substations
 │   ├── 06_download_cal_fire_fhsz.py      # ArcGIS REST paginator for CAL FIRE FHSZ
@@ -99,11 +96,6 @@ electric-grid-resilience/
 │   ├── variable_metadata_and_description.txt  # Column-level metadata for processed panels
 │   └── README.md
 │
-└── paper/                       # Final deliverables
-    ├── Methods_and_Results.docx # 2.3 MB, 21 inline figures, all tables embedded
-    ├── references.md            # Bibliography keyed to footnotes in the docx
-    ├── Rubrics for Final Project.pdf
-    └── README.md
 ```
 
 ---
@@ -204,7 +196,7 @@ Notebooks 01–10 execute end-to-end without raw LOCA2 (the AR6 fallback kicks i
 
 ## Reproducing the figures
 
-`data/processed/` is committed to the repo so figures and tables in the paper can be rebuilt from a fresh clone without re-running the heavy notebooks:
+`data/processed/` is committed to the repo so figures can be rebuilt from a fresh clone without re-running the heavy notebooks:
 
 ```bash
 git clone https://github.com/milindkudapa/electric-grid-resilience.git
@@ -212,8 +204,6 @@ cd electric-grid-resilience
 uv sync
 uv run python figures/01_build_descriptive_figures.py
 uv run python figures/02_build_asset_and_climate_figures.py
-uv run python figures/03_build_paper_docx.py
-# → paper/Methods_and_Results.docx
 ```
 
 To regenerate the climate-projection panel under the AR6 fallback:
@@ -256,6 +246,4 @@ uv run python figures/04_inject_nex_gddp_delta.py
 - `docs/Methodology.md` — long-form step-by-step methodology
 - `docs/data.md` — dataset download guide + schema notes
 - `docs/variable_metadata_and_description.txt` — column-level metadata
-- `paper/Methods_and_Results.docx` — final paper with embedded figures + tables
-- `paper/references.md` — bibliography
 - `figures/README.md` — figure-build scripts catalog

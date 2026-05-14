@@ -1,7 +1,6 @@
-# Figure / paper-build scripts
+# Figure-build scripts
 
-Self-contained scripts used to build the figures embedded in `Methods_and_Results.docx`
-and the data products feeding them. Run in numerical order; each is idempotent.
+Self-contained scripts used to build figures and the data products feeding them. Run in numerical order; each is idempotent.
 
 | # | Script | Purpose | Outputs |
 |---|---|---|---|
@@ -10,7 +9,6 @@ and the data products feeding them. Run in numerical order; each is idempotent.
 | 04 | `04_inject_nex_gddp_delta.py` | Compute per-county NEX-GDDP-CMIP6 mid-century TXx delta (vs observed 2018–2024 baseline) and inject into the LOCA2 projection CSVs as `TXx_nex_delta`. | updates `data/processed/loca2_projections_{ercot,caiso}.csv` |
 | 01 | `01_build_descriptive_figures.py` | Annual escalation, Uri/Beryl event timeseries, heat dose-response, compound wind×precip scatter, seasonal heatmap, county burden choropleth, heatwave duration histogram. | 7 PNGs in `data/processed/` |
 | 02 | `02_build_asset_and_climate_figures.py` | Asset vulnerability map, NEX-GDDP TXx delta map, top-15 composite component breakdown, AR6 vs NEX-GDDP TXx scatter. | 4 PNGs in `data/processed/` |
-| 03 | `03_build_paper_docx.py` | Assemble `Methods_and_Results.docx` from text + embedded figures + tables. | `Methods_and_Results.docx` |
 
 ## Re-running
 
@@ -22,10 +20,9 @@ uv run python figures/06_download_cal_fire_fhsz.py
 # Climate-projection injection (after the AR6 synthesis writes loca2_projections_*.csv)
 uv run python figures/04_inject_nex_gddp_delta.py
 
-# Figures + paper
+# Figures
 uv run python figures/01_build_descriptive_figures.py
 uv run python figures/02_build_asset_and_climate_figures.py
-uv run python figures/03_build_paper_docx.py
 ```
 
 ## Data dependencies

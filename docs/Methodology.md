@@ -138,7 +138,7 @@ $$
 2. **USGS LOCA2 per-scenario CSVs** at `data/raw/loca2/*.csv` (legacy distribution).
 3. **AR6 regional-delta synthesis** — `src/data/loca2_ar6_synthesis.py`. Applies IPCC AR6 WGI Atlas ensemble-median deltas (Central North America for ERCOT: +2.4 °C SSP245 / +3.5 °C SSP585 TXx mid-century; Western North America for CAISO: +2.0 / +3.0 °C) to the observed 2018–2024 weather baseline. Near-term (2030–2059) deltas are scaled to 70% of mid-century. Inter-model spread encoded as a ±0.7 °C likely-range half-width for temperature variables and ±20% for count-style variables (SU, TR, WSDI, TXge90F, etc.). Produces the canonical projection schema so all downstream notebooks read it transparently.
 
-**Cross-validation track — NEX-GDDP-CMIP6.** A parallel, fully independent track uses NASA NEX-GDDP-CMIP6 daily downscaled tasmax fields. `src/data/nex_gddp_loader.py` streams annual NetCDFs from the anonymous AWS S3 mirror (`s3://nex-gddp-cmip6/<GCM>/<scenario>/<variant>/tasmax/...nc`), subsets to a North-America bounding box, computes annual TXx, and applies representative-point-in-polygon zonal statistics to TIGER county geometry. A 5-year proof-of-concept (ACCESS-CM2, SSP5-8.5, 2055–2059) produced 1,545 county-year observations. Agreement with AR6 synthesis: 0.5 °C at the regional 99th-percentile, 2.73 °C RMSE per county (Bay-Area "cooling" deltas reflect the short observed baseline; Mariposa County's +14.8 °C is a 0.25° grid-cell sampling artefact — both disclosed in the paper).
+**Cross-validation track — NEX-GDDP-CMIP6.** A parallel, fully independent track uses NASA NEX-GDDP-CMIP6 daily downscaled tasmax fields. `src/data/nex_gddp_loader.py` streams annual NetCDFs from the anonymous AWS S3 mirror (`s3://nex-gddp-cmip6/<GCM>/<scenario>/<variant>/tasmax/...nc`), subsets to a North-America bounding box, computes annual TXx, and applies representative-point-in-polygon zonal statistics to TIGER county geometry. A 5-year proof-of-concept (ACCESS-CM2, SSP5-8.5, 2055–2059) produced 1,545 county-year observations. Agreement with AR6 synthesis: 0.5 °C at the regional 99th-percentile, 2.73 °C RMSE per county (Bay-Area "cooling" deltas reflect the short observed baseline; Mariposa County's +14.8 °C is a 0.25° grid-cell sampling artefact).
 
 **Processing steps.**
 1. Load and concatenate raw LOCA2 (NetCDF or CSV) if present; otherwise call the AR6 synthesis loader.
@@ -258,6 +258,4 @@ These four levers map cleanly onto the EPRI Climate READi framework axes (physic
 - `docs/data.md` — dataset download guide (sources, target paths, schema notes)
 - `docs/variable_metadata_and_description.txt` — column-level metadata for processed panels
 - `notebooks/NOTEBOOKS.md` — per-notebook reference with current results
-- `figures/README.md` — figure / paper-build script catalog
-- `paper/Methods_and_Results.docx` — final paper Methods + Results with embedded figures
-- `paper/references.md` — bibliography (matched to footnotes in this file)
+- `figures/README.md` — figure-build script catalog
